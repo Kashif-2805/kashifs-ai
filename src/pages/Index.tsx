@@ -1,8 +1,9 @@
 import { useState } from "react";
 import ChatInterface from "@/components/chat/ChatInterface";
 import Sidebar from "@/components/chat/Sidebar";
-import { MessageSquare, Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import kashifLogo from "@/assets/kashif-ai-logo.png";
 
 const Index = () => {
   const [conversations, setConversations] = useState([
@@ -35,9 +36,11 @@ const Index = () => {
         <header className="border-b border-border bg-card px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-elegant">
-                <MessageSquare className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <img 
+                src={kashifLogo} 
+                alt="Kashif's AI Logo" 
+                className="h-12 w-12 object-contain"
+              />
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                   Kashif's AI
