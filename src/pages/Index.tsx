@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ChatInterface from "@/components/chat/ChatInterface";
-import Sidebar from "@/components/chat/Sidebar";
+import ModernSidebar from "@/components/chat/ModernSidebar";
 import { Volume2, VolumeX, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -58,7 +58,7 @@ const Index = () => {
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
       {!isMobile && (
-        <Sidebar 
+        <ModernSidebar 
           conversations={conversations}
           currentConversationId={currentConversationId}
           onSelectConversation={setCurrentConversationId}
@@ -82,7 +82,7 @@ const Index = () => {
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="p-0 w-64">
-                    <Sidebar 
+                    <ModernSidebar 
                       conversations={conversations}
                       currentConversationId={currentConversationId}
                       onSelectConversation={(id) => {
