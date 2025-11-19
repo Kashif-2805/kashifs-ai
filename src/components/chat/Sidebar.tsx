@@ -63,7 +63,7 @@ const Sidebar = ({
 
       <div className="border-t border-border p-4">
         <div className="text-xs text-center text-muted-foreground">
-          Powered by MKA AI
+          Powered by Kashif's AI
         </div>
       </div>
     </div>
