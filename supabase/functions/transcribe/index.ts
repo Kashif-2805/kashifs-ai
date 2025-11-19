@@ -14,8 +14,22 @@ serve(async (req) => {
   try {
     const { audio } = await req.json();
     
-    if (!audio) {
-      throw new Error('No audio data provided');
+    // Input validation
+    if (!audio || typeof audio !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'Audio data must be a base64 encoded string' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check base64 size (approximate byte size = length * 0.75)
+    const approximateBytes = audio.length * 0.75;
+    const maxBytes = 25 * 1024 * 1024; // 25MB
+    if (approximateBytes > maxBytes) {
+      return new Response(
+        JSON.stringify({ error: 'Audio file size cannot exceed 25MB' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('Transcribing audio...');
