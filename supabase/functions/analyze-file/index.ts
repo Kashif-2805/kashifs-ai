@@ -14,8 +14,43 @@ serve(async (req) => {
   try {
     const { fileName, fileContent, fileType } = await req.json();
 
-    if (!fileName || !fileContent) {
-      throw new Error('File name and content are required');
+    // Input validation
+    if (!fileName || typeof fileName !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'fileName must be a non-empty string' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!fileContent || typeof fileContent !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'fileContent must be provided' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!fileType || typeof fileType !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'fileType must be a non-empty string' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check file size (approximate byte size for base64)
+    const approximateBytes = fileContent.length * 0.75;
+    const maxBytes = 20 * 1024 * 1024; // 20MB
+    if (approximateBytes > maxBytes) {
+      return new Response(
+        JSON.stringify({ error: 'File size cannot exceed 20MB' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (fileName.length > 255) {
+      return new Response(
+        JSON.stringify({ error: 'File name cannot exceed 255 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('Analyzing file:', fileName, 'Type:', fileType);

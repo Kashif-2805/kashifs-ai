@@ -14,8 +14,27 @@ serve(async (req) => {
   try {
     const { text, voice = 'alloy' } = await req.json();
 
-    if (!text) {
-      throw new Error('Text is required');
+    // Input validation
+    if (!text || typeof text !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'Text must be a non-empty string' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (text.length > 10000) {
+      return new Response(
+        JSON.stringify({ error: 'Text cannot exceed 10,000 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (voice && !validVoices.includes(voice)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid voice. Must be one of: ${validVoices.join(', ')}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('Generating speech for text:', text.substring(0, 50) + '...');
