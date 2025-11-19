@@ -100,7 +100,7 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
         } else if (resp.status === 402) {
           toast({
             title: "Payment Required",
-            description: "Please add credits to continue using MKA AI.",
+            description: "Please add credits to continue using Kashif's AI.",
             variant: "destructive",
           });
         }
@@ -222,10 +222,10 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
             <div className="text-center space-y-4 max-w-md">
               <div className="flex justify-center">
                 <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-elegant">
-                  <span className="text-3xl font-bold text-primary-foreground">MKA</span>
+                  <span className="text-3xl font-bold text-primary-foreground">KAI</span>
                 </div>
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Welcome to MKA AI</h2>
+              <h2 className="text-2xl font-bold text-foreground">Welcome to Kashif's AI</h2>
               <p className="text-muted-foreground">
                 Ask me anything! I can help with coding, research, creative tasks, and much more.
               </p>
@@ -270,7 +270,7 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask MKA AI anything..."
+              placeholder="Ask Kashif's AI anything..."
               className="min-h-[60px] max-h-[200px] resize-none rounded-2xl border-border bg-background focus-visible:ring-primary"
               disabled={isLoading}
             />
