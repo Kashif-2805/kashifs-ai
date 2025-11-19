@@ -68,6 +68,17 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
   const streamChat = async (userMessage: Message) => {
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
     
+    // Get user session token
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to continue",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Prepare message content with file context
     let messageContent = userMessage.content;
     if (userMessage.files && userMessage.files.length > 0) {
@@ -82,7 +93,7 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ 
           messages: [...messages.map(m => ({ role: m.role, content: m.content })), 

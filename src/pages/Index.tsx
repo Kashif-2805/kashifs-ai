@@ -1,13 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import ChatInterface from "@/components/chat/ChatInterface";
 import Sidebar from "@/components/chat/Sidebar";
-import { Volume2, VolumeX, Menu } from "lucide-react";
+import { Volume2, VolumeX, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import kashifLogo from "@/assets/kashif-ai-logo.png";
+import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
   const [conversations, setConversations] = useState([
     { id: "1", title: "New Conversation", timestamp: new Date() }
   ]);
@@ -26,6 +36,23 @@ const Index = () => {
     setConversations([newConversation, ...conversations]);
     setCurrentConversationId(newId);
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -83,19 +110,30 @@ const Index = () => {
               </div>
             </div>
             
-            <Button
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
-              variant="outline"
-              size="icon"
-              className="rounded-full shrink-0"
-              title={voiceEnabled ? "Disable voice responses" : "Enable voice responses"}
-            >
-              {voiceEnabled ? (
-                <Volume2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-              ) : (
-                <VolumeX className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setVoiceEnabled(!voiceEnabled)}
+                variant="outline"
+                size="icon"
+                className="rounded-full shrink-0"
+                title={voiceEnabled ? "Disable voice responses" : "Enable voice responses"}
+              >
+                {voiceEnabled ? (
+                  <Volume2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                ) : (
+                  <VolumeX className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                )}
+              </Button>
+              <Button
+                onClick={handleSignOut}
+                variant="outline"
+                size="icon"
+                className="rounded-full shrink-0"
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4 md:h-5 md:w-5" />
+              </Button>
+            </div>
           </div>
         </header>
         
