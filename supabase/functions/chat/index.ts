@@ -32,7 +32,7 @@ serve(async (req) => {
         messages: [
           { 
             role: "system", 
-            content: "You are MKA AI, an advanced artificial intelligence assistant. You provide helpful, detailed, and thoughtful responses. You have capabilities for deep reasoning, code generation, and problem-solving across various domains."
+            content: "You are Kashif's AI, an advanced artificial intelligence assistant. You provide helpful, detailed, and thoughtful responses. You have capabilities for deep reasoning, code generation, and problem-solving across various domains."
           },
           ...messages,
         ],

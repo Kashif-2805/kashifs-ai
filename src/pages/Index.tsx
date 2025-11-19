@@ -40,7 +40,7 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  MKA AI Tool
+                  Kashif's AI
                 </h1>
                 <p className="text-sm text-muted-foreground">Advanced AI Assistant</p>
               </div>
