@@ -48,50 +48,62 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
   };
 
   const handleReadAloud = () => {
-    if (isReadingAloud || !('speechSynthesis' in window)) {
-      if (!('speechSynthesis' in window)) {
-        toast({
-          title: "Not Supported",
-          description: "Text-to-speech is not supported in your browser",
-          variant: "destructive",
-        });
-      }
+    if (isReadingAloud) return;
+    
+    // Check if speechSynthesis exists
+    if (!window.speechSynthesis) {
+      toast({
+        title: "Not Available",
+        description: "Text-to-speech is not available on this device",
+        variant: "destructive",
+      });
       return;
     }
     
-    // Cancel any ongoing speech (important for mobile)
+    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
     
     setIsReadingAloud(true);
     
-    // Small delay for mobile browsers to process the cancel
+    // Small delay to ensure cancel is processed
     setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance(message.content);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      
-      utterance.onend = () => {
-        setIsReadingAloud(false);
-      };
-      
-      utterance.onerror = (event) => {
-        console.log('Speech error:', event);
+      try {
+        const utterance = new SpeechSynthesisUtterance(message.content);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        utterance.lang = 'en-US';
+        
+        utterance.onend = () => {
+          setIsReadingAloud(false);
+        };
+        
+        utterance.onerror = (event) => {
+          console.error('Speech error:', event);
+          setIsReadingAloud(false);
+          // Don't show error toast for 'interrupted' or 'canceled' errors
+          if (event.error !== 'interrupted' && event.error !== 'canceled') {
+            toast({
+              title: "Playback Failed",
+              description: "Could not play audio. Try again.",
+              variant: "destructive",
+            });
+          }
+        };
+        
+        // Speak the text
+        window.speechSynthesis.speak(utterance);
+        
+      } catch (error) {
+        console.error('Speech synthesis error:', error);
         setIsReadingAloud(false);
         toast({
           title: "Error",
-          description: "Failed to read message aloud",
+          description: "Text-to-speech failed. Your browser may not support this feature.",
           variant: "destructive",
         });
-      };
-      
-      // For iOS Safari compatibility
-      utterance.onstart = () => {
-        console.log('Speech started');
-      };
-      
-      window.speechSynthesis.speak(utterance);
-    }, 100);
+      }
+    }, 150);
   };
 
   return (
