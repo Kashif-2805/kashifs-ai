@@ -59,24 +59,39 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
       return;
     }
     
+    // Cancel any ongoing speech (important for mobile)
+    window.speechSynthesis.cancel();
+    
     setIsReadingAloud(true);
     
-    const utterance = new SpeechSynthesisUtterance(message.content);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    
-    utterance.onend = () => setIsReadingAloud(false);
-    utterance.onerror = () => {
-      setIsReadingAloud(false);
-      toast({
-        title: "Error",
-        description: "Failed to read message aloud",
-        variant: "destructive",
-      });
-    };
-    
-    window.speechSynthesis.speak(utterance);
+    // Small delay for mobile browsers to process the cancel
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(message.content);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      utterance.onend = () => {
+        setIsReadingAloud(false);
+      };
+      
+      utterance.onerror = (event) => {
+        console.log('Speech error:', event);
+        setIsReadingAloud(false);
+        toast({
+          title: "Error",
+          description: "Failed to read message aloud",
+          variant: "destructive",
+        });
+      };
+      
+      // For iOS Safari compatibility
+      utterance.onstart = () => {
+        console.log('Speech started');
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    }, 100);
   };
 
   return (
