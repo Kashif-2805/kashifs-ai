@@ -2,7 +2,6 @@ import { useState } from "react";
 import { User, Bot, FileText, Image as ImageIcon, Copy, Volume2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import VoicePlayer from "./VoicePlayer";
 
 interface UploadedFile {
@@ -48,31 +47,36 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
     }
   };
 
-  const handleReadAloud = async () => {
-    if (isReadingAloud) return;
+  const handleReadAloud = () => {
+    if (isReadingAloud || !('speechSynthesis' in window)) {
+      if (!('speechSynthesis' in window)) {
+        toast({
+          title: "Not Supported",
+          description: "Text-to-speech is not supported in your browser",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
     
     setIsReadingAloud(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: { text: message.content },
-      });
-
-      if (error) throw error;
-      
-      if (data?.audioContent) {
-        const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
-        audio.onended = () => setIsReadingAloud(false);
-        await audio.play();
-      }
-    } catch (error) {
-      console.error('Read aloud error:', error);
+    
+    const utterance = new SpeechSynthesisUtterance(message.content);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    
+    utterance.onend = () => setIsReadingAloud(false);
+    utterance.onerror = () => {
+      setIsReadingAloud(false);
       toast({
         title: "Error",
         description: "Failed to read message aloud",
         variant: "destructive",
       });
-      setIsReadingAloud(false);
-    }
+    };
+    
+    window.speechSynthesis.speak(utterance);
   };
 
   return (
