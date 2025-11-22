@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Bot, FileText, Image as ImageIcon, Copy, Volume2, Check } from "lucide-react";
+import { User, Bot, FileText, Image as ImageIcon, Copy, Volume2, Check, Pause, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,7 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [isReadingAloud, setIsReadingAloud] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [speechRate, setSpeechRate] = useState(1.0);
   const { toast } = useToast();
 
@@ -105,7 +106,39 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
           variant: "destructive",
         });
       }
-    }, 150);
+      }, 150);
+  };
+
+  const handlePauseResume = () => {
+    if (!window.speechSynthesis) return;
+    
+    if (isPaused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+    } else {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: message.content,
+          title: "Share message"
+        });
+      } catch (error) {
+        console.error('Share failed:', error);
+      }
+    } else {
+      // Fallback: copy to clipboard
+      await handleCopy();
+      toast({
+        title: "Copied",
+        description: "Message copied to clipboard (share not supported)",
+      });
+    }
   };
 
   return (
@@ -172,6 +205,24 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
               className="h-7 px-2 text-muted-foreground hover:text-foreground"
             >
               <Volume2 className={`h-3 w-3 ${isReadingAloud ? 'animate-pulse' : ''}`} />
+            </Button>
+            {isReadingAloud && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handlePauseResume}
+                className="h-7 px-2 text-muted-foreground hover:text-foreground"
+              >
+                <Pause className="h-3 w-3" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleShare}
+              className="h-7 px-2 text-muted-foreground hover:text-foreground"
+            >
+              <Share2 className="h-3 w-3" />
             </Button>
           </div>
           <div className="flex items-center gap-2 px-2">

@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Clock, Inbox, Calendar, BarChart3, Settings, Plus, ChevronDown, Circle } from "lucide-react";
+import { Home, MessageSquare, Clock, Inbox, Calendar, FileText, Video, ImageIcon, Settings, Plus, ChevronDown, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +35,9 @@ const ModernSidebar = ({
     { icon: Clock, label: "History", active: false },
     { icon: Inbox, label: "Inbox", badge: 6, active: false },
     { icon: Calendar, label: "Calendar", active: false },
-    { icon: BarChart3, label: "Reports & Analytics", active: false },
+    { icon: FileText, label: "AI PPT", active: false },
+    { icon: Video, label: "AI Video", active: false },
+    { icon: ImageIcon, label: "Image Generator", active: false },
   ];
 
   const projectColors = [
