@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { User, Bot, FileText, Image as ImageIcon, Copy, Volume2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import VoicePlayer from "./VoicePlayer";
 
@@ -27,6 +28,7 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [isReadingAloud, setIsReadingAloud] = useState(false);
+  const [speechRate, setSpeechRate] = useState(1.0);
   const { toast } = useToast();
 
   const handleCopy = async () => {
@@ -69,7 +71,7 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
     setTimeout(() => {
       try {
         const utterance = new SpeechSynthesisUtterance(message.content);
-        utterance.rate = 1.0;
+        utterance.rate = speechRate;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
         utterance.lang = 'en-US';
@@ -152,24 +154,37 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
           )}
         </div>
 
-        <div className={`flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isUser ? 'justify-end' : 'justify-start'}`}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCopy}
-            className="h-7 px-2 text-muted-foreground hover:text-foreground"
-          >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleReadAloud}
-            disabled={isReadingAloud}
-            className="h-7 px-2 text-muted-foreground hover:text-foreground"
-          >
-            <Volume2 className={`h-3 w-3 ${isReadingAloud ? 'animate-pulse' : ''}`} />
-          </Button>
+        <div className={`flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity ${isUser ? 'items-end' : 'items-start'}`}>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopy}
+              className="h-7 px-2 text-muted-foreground hover:text-foreground"
+            >
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleReadAloud}
+              disabled={isReadingAloud}
+              className="h-7 px-2 text-muted-foreground hover:text-foreground"
+            >
+              <Volume2 className={`h-3 w-3 ${isReadingAloud ? 'animate-pulse' : ''}`} />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{speechRate.toFixed(1)}x</span>
+            <Slider
+              value={[speechRate]}
+              onValueChange={(value) => setSpeechRate(value[0])}
+              min={0.5}
+              max={2}
+              step={0.1}
+              className="w-24"
+            />
+          </div>
         </div>
       </div>
 
