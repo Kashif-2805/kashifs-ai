@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Clock, Inbox, Calendar, FileText, Video, ImageIcon, Settings, Plus, ChevronDown, Circle } from "lucide-react";
+import { Home, MessageSquare, Clock, Calendar, FileText, Video, ImageIcon, Settings, Plus, ChevronDown, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -29,11 +29,10 @@ const ModernSidebar = ({
   const userName = userEmail.split('@')[0] || "User";
   const initials = userName.slice(0, 2).toUpperCase();
 
-  const navItems = [
+  const navItems: Array<{ icon: any; label: string; active: boolean; badge?: number }> = [
     { icon: Home, label: "Home", active: true },
     { icon: MessageSquare, label: "AI Chat", active: false },
     { icon: Clock, label: "History", active: false },
-    { icon: Inbox, label: "Inbox", badge: 6, active: false },
     { icon: Calendar, label: "Calendar", active: false },
     { icon: FileText, label: "AI PPT", active: false },
     { icon: Video, label: "AI Video", active: false },
@@ -82,7 +81,7 @@ const ModernSidebar = ({
               >
                 <Icon className="h-5 w-5 flex-shrink-0" />
                 <span className="flex-1 text-left">{item.label}</span>
-                {item.badge && (
+                {item.badge !== undefined && (
                   <Badge 
                     variant="secondary" 
                     className="h-5 min-w-5 rounded-full bg-primary text-primary-foreground px-1.5"
