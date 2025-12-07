@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ChatInterface from "@/components/chat/ChatInterface";
 import ModernSidebar from "@/components/chat/ModernSidebar";
 import { Volume2, VolumeX, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,61 +8,34 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import kashifLogo from "@/assets/kashif-ai-logo.png";
 import { useAuth } from "@/hooks/useAuth";
 
-const Index = () => {
-  const { user, loading, signOut } = useAuth();
-  const navigate = useNavigate();
+interface AppLayoutProps {
+  children: React.ReactNode;
+  voiceEnabled?: boolean;
+  onVoiceToggle?: () => void;
+  showVoiceToggle?: boolean;
+}
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
-  const [conversations, setConversations] = useState([
-    { id: "1", title: "New Conversation", timestamp: new Date() }
-  ]);
-  const [currentConversationId, setCurrentConversationId] = useState("1");
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+const AppLayout = ({ 
+  children, 
+  voiceEnabled = false, 
+  onVoiceToggle,
+  showVoiceToggle = false
+}: AppLayoutProps) => {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
-
-  const handleNewChat = () => {
-    const newId = Date.now().toString();
-    const newConversation = {
-      id: newId,
-      title: "New Conversation",
-      timestamp: new Date(),
-    };
-    setConversations([newConversation, ...conversations]);
-    setCurrentConversationId(newId);
-  };
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
       {!isMobile && (
-        <ModernSidebar 
-          conversations={conversations}
-          currentConversationId={currentConversationId}
-          onSelectConversation={setCurrentConversationId}
-          onNewChat={handleNewChat}
-        />
+        <ModernSidebar onCloseMobile={() => setIsSidebarOpen(false)} />
       )}
       
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -82,18 +54,7 @@ const Index = () => {
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="p-0 w-64">
-                    <ModernSidebar 
-                      conversations={conversations}
-                      currentConversationId={currentConversationId}
-                      onSelectConversation={(id) => {
-                        setCurrentConversationId(id);
-                        setIsSidebarOpen(false);
-                      }}
-                      onNewChat={() => {
-                        handleNewChat();
-                        setIsSidebarOpen(false);
-                      }}
-                    />
+                    <ModernSidebar onCloseMobile={() => setIsSidebarOpen(false)} />
                   </SheetContent>
                 </Sheet>
               )}
@@ -111,19 +72,21 @@ const Index = () => {
             </div>
             
             <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setVoiceEnabled(!voiceEnabled)}
-                variant="outline"
-                size="icon"
-                className="rounded-full shrink-0"
-                title={voiceEnabled ? "Disable voice responses" : "Enable voice responses"}
-              >
-                {voiceEnabled ? (
-                  <Volume2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-                ) : (
-                  <VolumeX className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-                )}
-              </Button>
+              {showVoiceToggle && onVoiceToggle && (
+                <Button
+                  onClick={onVoiceToggle}
+                  variant="outline"
+                  size="icon"
+                  className="rounded-full shrink-0"
+                  title={voiceEnabled ? "Disable voice responses" : "Enable voice responses"}
+                >
+                  {voiceEnabled ? (
+                    <Volume2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                  ) : (
+                    <VolumeX className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                  )}
+                </Button>
+              )}
               <Button
                 onClick={handleSignOut}
                 variant="outline"
@@ -137,10 +100,12 @@ const Index = () => {
           </div>
         </header>
         
-        <ChatInterface conversationId={currentConversationId} voiceEnabled={voiceEnabled} />
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
       </div>
     </div>
   );
 };
 
-export default Index;
+export default AppLayout;
