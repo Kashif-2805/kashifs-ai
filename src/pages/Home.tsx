@@ -1,20 +1,67 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, FileText, Video, ImageIcon, Calendar, Clock, ArrowRight, Sparkles } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+
+interface Conversation {
+  id: string;
+  title: string;
+  type: string;
+  updated_at: string;
+}
 
 const Home = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [recentActivities, setRecentActivities] = useState<Conversation[]>([]);
+  const [stats, setStats] = useState({ chat: 0, ppt: 0, video: 0, image: 0 });
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  const fetchData = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      setRecentActivities(data || []);
+
+      // Calculate stats
+      const { data: allData } = await supabase
+        .from('conversations')
+        .select('type');
+
+      if (allData) {
+        const counts = { chat: 0, ppt: 0, video: 0, image: 0 };
+        allData.forEach(item => {
+          if (item.type in counts) {
+            counts[item.type as keyof typeof counts]++;
+          }
+        });
+        setStats(counts);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -65,18 +112,22 @@ const Home = () => {
     }
   ];
 
-  const recentActivities = [
-    { type: "chat", title: "New Conversation", time: "Just now" },
-    { type: "ppt", title: "Cloud Computing PPT", time: "2 hours ago" },
-    { type: "image", title: "Sunset Beach Image", time: "Yesterday" },
+  const statItems = [
+    { label: "Chats", value: stats.chat.toString(), icon: MessageSquare },
+    { label: "PPTs Created", value: stats.ppt.toString(), icon: FileText },
+    { label: "Videos", value: stats.video.toString(), icon: Video },
+    { label: "Images", value: stats.image.toString(), icon: ImageIcon },
   ];
 
-  const stats = [
-    { label: "Chats", value: "12", icon: MessageSquare },
-    { label: "PPTs Created", value: "5", icon: FileText },
-    { label: "Videos", value: "3", icon: Video },
-    { label: "Images", value: "24", icon: ImageIcon },
-  ];
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'chat': return MessageSquare;
+      case 'ppt': return FileText;
+      case 'video': return Video;
+      case 'image': return ImageIcon;
+      default: return MessageSquare;
+    }
+  };
 
   return (
     <AppLayout>
@@ -115,7 +166,7 @@ const Home = () => {
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          {stats.map((stat) => (
+          {statItems.map((stat) => (
             <Card key={stat.label} className="bg-card/50">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-primary/10">
@@ -145,22 +196,31 @@ const Home = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {recentActivities.map((activity, i) => (
-                <div 
-                  key={i} 
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                >
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    {activity.type === "chat" && <MessageSquare className="h-4 w-4 text-primary" />}
-                    {activity.type === "ppt" && <FileText className="h-4 w-4 text-primary" />}
-                    {activity.type === "image" && <ImageIcon className="h-4 w-4 text-primary" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{activity.title}</p>
-                    <p className="text-xs text-muted-foreground">{activity.time}</p>
-                  </div>
+              {recentActivities.length === 0 ? (
+                <div className="py-4 text-center text-muted-foreground text-sm">
+                  No recent activity
                 </div>
-              ))}
+              ) : (
+                recentActivities.map((activity) => {
+                  const Icon = getIcon(activity.type);
+                  return (
+                    <div 
+                      key={activity.id} 
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <Icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{activity.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(activity.updated_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </CardContent>
           </Card>
 
