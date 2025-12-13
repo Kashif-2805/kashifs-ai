@@ -8,6 +8,8 @@ import Chat from "./pages/Chat";
 import History from "./pages/History";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import CalendarPage from "./pages/Calendar";
+import PPTPage from "./pages/PPT";
 
 const queryClient = new QueryClient();
 
@@ -22,9 +24,9 @@ const App = () => (
           <Route path="/chat" element={<Chat />} />
           <Route path="/history" element={<History />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/ppt" element={<PPTPage />} />
           {/* Placeholder routes - coming soon pages */}
-          <Route path="/calendar" element={<Home />} />
-          <Route path="/ppt" element={<Home />} />
           <Route path="/video" element={<Home />} />
           <Route path="/images" element={<Home />} />
           <Route path="/settings" element={<Home />} />
