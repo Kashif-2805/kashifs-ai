@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import VoicePlayer from "./VoicePlayer";
+import ReactMarkdown from "react-markdown";
 
 interface UploadedFile {
   name: string;
@@ -11,6 +12,11 @@ interface UploadedFile {
   type: string;
   content: string;
   preview?: string;
+  analysis?: {
+    topic: string;
+    subtopics: string[];
+    summary: string;
+  };
 }
 
 interface Message {
@@ -30,6 +36,7 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
   const [isReadingAloud, setIsReadingAloud] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [speechRate, setSpeechRate] = useState(1.0);
+  const [showControls, setShowControls] = useState(false);
   const { toast } = useToast();
 
   const handleCopy = async () => {
@@ -53,7 +60,6 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
   const handleReadAloud = () => {
     if (isReadingAloud) return;
     
-    // Check if speechSynthesis exists
     if (!window.speechSynthesis) {
       toast({
         title: "Not Available",
@@ -63,12 +69,9 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
       return;
     }
     
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
-    
     setIsReadingAloud(true);
     
-    // Small delay to ensure cancel is processed
     setTimeout(() => {
       try {
         const utterance = new SpeechSynthesisUtterance(message.content);
@@ -84,7 +87,6 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
         utterance.onerror = (event) => {
           console.error('Speech error:', event);
           setIsReadingAloud(false);
-          // Don't show error toast for 'interrupted' or 'canceled' errors
           if (event.error !== 'interrupted' && event.error !== 'canceled') {
             toast({
               title: "Playback Failed",
@@ -94,7 +96,6 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
           }
         };
         
-        // Speak the text
         window.speechSynthesis.speak(utterance);
         
       } catch (error) {
@@ -106,7 +107,7 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
           variant: "destructive",
         });
       }
-      }, 150);
+    }, 150);
   };
 
   const handlePauseResume = () => {
@@ -132,7 +133,6 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
         console.error('Share failed:', error);
       }
     } else {
-      // Fallback: copy to clipboard
       await handleCopy();
       toast({
         title: "Copied",
@@ -142,43 +142,68 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
   };
 
   return (
-    <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"} group`}>
+    <div 
+      className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
+      onMouseEnter={() => setShowControls(true)}
+      onMouseLeave={() => setShowControls(false)}
+    >
       {!isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary shadow-elegant">
-          <Bot className="h-4 w-4 text-primary-foreground" />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg">
+          <Bot className="h-5 w-5 text-primary-foreground" />
         </div>
       )}
       
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 max-w-[80%] md:max-w-[70%]">
         <div
-          className={`max-w-[70%] rounded-2xl px-4 py-3 space-y-3 ${
+          className={`rounded-2xl px-4 py-3 space-y-3 ${
             isUser
-              ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-elegant"
-              : "bg-card border border-border text-card-foreground"
+              ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-lg"
+              : "bg-card border border-border text-card-foreground shadow-sm"
           }`}
         >
+          {/* Attached Files */}
           {message.files && message.files.length > 0 && (
-            <div className="space-y-2 pb-2 border-b border-border/30">
+            <div className="space-y-2 pb-3 border-b border-border/30">
               {message.files.map((file, index) => (
-                <div key={index} className="flex items-center gap-2 text-sm">
-                  {file.preview ? (
-                    <img 
-                      src={file.preview} 
-                      alt={file.name}
-                      className="h-16 w-16 rounded object-cover"
-                    />
-                  ) : file.type.startsWith('image/') ? (
-                    <ImageIcon className="h-4 w-4" />
-                  ) : (
-                    <FileText className="h-4 w-4" />
+                <div key={index} className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    {file.preview ? (
+                      <img 
+                        src={file.preview} 
+                        alt={file.name}
+                        className="h-16 w-16 rounded-lg object-cover"
+                      />
+                    ) : file.type.startsWith('image/') ? (
+                      <ImageIcon className="h-5 w-5" />
+                    ) : (
+                      <FileText className="h-5 w-5" />
+                    )}
+                    <span className="truncate font-medium">{file.name}</span>
+                  </div>
+                  
+                  {/* PDF Analysis Display */}
+                  {file.analysis && (
+                    <div className={`text-xs p-2 rounded-lg ${isUser ? 'bg-white/10' : 'bg-muted'}`}>
+                      <p className="font-semibold">Topic: {file.analysis.topic}</p>
+                      <p className="text-muted-foreground mt-1">
+                        Subtopics: {file.analysis.subtopics.slice(0, 3).join(', ')}
+                        {file.analysis.subtopics.length > 3 && '...'}
+                      </p>
+                    </div>
                   )}
-                  <span className="truncate font-medium">{file.name}</span>
                 </div>
               ))}
             </div>
           )}
           
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          {/* Message Content with Markdown */}
+          {isUser ? (
+            <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+          ) : (
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-pre:rounded-lg">
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+            </div>
+          )}
           
           {message.audioContent && message.role === "assistant" && (
             <div className="pt-2">
@@ -187,61 +212,68 @@ const MessageBubble = ({ message }: MessageBubbleProps) => {
           )}
         </div>
 
-        <div className={`flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity ${isUser ? 'items-end' : 'items-start'}`}>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCopy}
-              className="h-7 px-2 text-muted-foreground hover:text-foreground"
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleReadAloud}
-              disabled={isReadingAloud}
-              className="h-7 px-2 text-muted-foreground hover:text-foreground"
-            >
-              <Volume2 className={`h-3 w-3 ${isReadingAloud ? 'animate-pulse' : ''}`} />
-            </Button>
-            {isReadingAloud && (
+        {/* Action Controls */}
+        {!isUser && (
+          <div className={`flex flex-col gap-2 transition-opacity duration-200 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="flex gap-1">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handlePauseResume}
-                className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                onClick={handleCopy}
+                className="h-8 px-2.5 text-muted-foreground hover:text-foreground rounded-lg"
               >
-                <Pause className="h-3 w-3" />
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                <span className="ml-1 text-xs">Copy</span>
               </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleShare}
-              className="h-7 px-2 text-muted-foreground hover:text-foreground"
-            >
-              <Share2 className="h-3 w-3" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReadAloud}
+                disabled={isReadingAloud}
+                className="h-8 px-2.5 text-muted-foreground hover:text-foreground rounded-lg"
+              >
+                <Volume2 className={`h-4 w-4 ${isReadingAloud ? 'animate-pulse text-primary' : ''}`} />
+                <span className="ml-1 text-xs">{isReadingAloud ? 'Playing' : 'Read'}</span>
+              </Button>
+              {isReadingAloud && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePauseResume}
+                  className="h-8 px-2.5 text-muted-foreground hover:text-foreground rounded-lg"
+                >
+                  <Pause className="h-4 w-4" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleShare}
+                className="h-8 px-2.5 text-muted-foreground hover:text-foreground rounded-lg"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            {/* Speech Rate Slider */}
+            <div className="flex items-center gap-2 px-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{speechRate.toFixed(1)}x</span>
+              <Slider
+                value={[speechRate]}
+                onValueChange={(value) => setSpeechRate(value[0])}
+                min={0.5}
+                max={2}
+                step={0.1}
+                className="w-24"
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-2">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{speechRate.toFixed(1)}x</span>
-            <Slider
-              value={[speechRate]}
-              onValueChange={(value) => setSpeechRate(value[0])}
-              min={0.5}
-              max={2}
-              step={0.1}
-              className="w-24"
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       {isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <User className="h-4 w-4 text-muted-foreground" />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted border border-border">
+          <User className="h-5 w-5 text-muted-foreground" />
         </div>
       )}
     </div>

@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, Paperclip } from "lucide-react";
+import { Send, Loader2, Paperclip, Sparkles, FileText, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MessageBubble from "./MessageBubble";
 import FileUpload from "./FileUpload";
 import VoiceRecorder from "./VoiceRecorder";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 interface UploadedFile {
   name: string;
@@ -14,6 +15,11 @@ interface UploadedFile {
   type: string;
   content: string;
   preview?: string;
+  analysis?: {
+    topic: string;
+    subtopics: string[];
+    summary: string;
+  };
 }
 
 interface Message {
@@ -34,7 +40,9 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [showFileUpload, setShowFileUpload] = useState(false);
+  const [pdfContext, setPdfContext] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   const scrollToBottom = () => {
@@ -47,7 +55,16 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
 
   useEffect(() => {
     setMessages([]);
+    setPdfContext(null);
   }, [conversationId]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [input]);
 
   const generateVoice = async (text: string) => {
     if (!voiceEnabled) return;
@@ -68,7 +85,6 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
   const streamChat = async (userMessage: Message) => {
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
     
-    // Get user session token
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !session) {
       toast({
@@ -79,13 +95,27 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
       return;
     }
     
-    // Prepare message content with file context
+    // Build rich context with file analysis
     let messageContent = userMessage.content;
+    let systemContext = "";
+    
     if (userMessage.files && userMessage.files.length > 0) {
-      const fileContext = userMessage.files.map(f => 
-        `[Attached file: ${f.name}]`
-      ).join('\n');
-      messageContent = `${fileContext}\n\n${messageContent}`;
+      const fileAnalyses = userMessage.files.map(f => {
+        if (f.analysis) {
+          return `[Document: ${f.name}]
+Topic: ${f.analysis.topic}
+Subtopics: ${f.analysis.subtopics.join(', ')}
+Summary: ${f.analysis.summary}`;
+        }
+        return `[Attached file: ${f.name}]`;
+      }).join('\n\n');
+      
+      systemContext = `The user has uploaded the following document(s):\n${fileAnalyses}\n\nProvide advanced insights based on this context.`;
+    }
+
+    // Include PDF context for follow-up questions
+    if (pdfContext) {
+      systemContext = `${pdfContext}\n\n${systemContext}`;
     }
     
     try {
@@ -96,8 +126,11 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ 
-          messages: [...messages.map(m => ({ role: m.role, content: m.content })), 
-          { role: userMessage.role, content: messageContent }] 
+          messages: [
+            ...messages.map(m => ({ role: m.role, content: m.content })), 
+            { role: userMessage.role, content: messageContent }
+          ],
+          systemContext,
         }),
       });
 
@@ -167,7 +200,6 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
         }
       }
 
-      // Generate voice for complete response if enabled
       if (voiceEnabled && assistantContent) {
         const audioContent = await generateVoice(assistantContent);
         if (audioContent) {
@@ -192,12 +224,24 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
     }
   };
 
+  const handleFileAnalyzed = (file: UploadedFile, analysis: { topic: string; subtopics: string[]; summary: string }) => {
+    // Update file with analysis
+    setUploadedFiles(prev => prev.map(f => 
+      f.name === file.name ? { ...f, analysis } : f
+    ));
+    
+    // Store PDF context for follow-up questions
+    if (file.type === 'application/pdf') {
+      setPdfContext(`PDF Document Context - Topic: ${analysis.topic}\nSubtopics: ${analysis.subtopics.join(', ')}\nSummary: ${analysis.summary}`);
+    }
+  };
+
   const handleSend = async () => {
     if ((!input.trim() && uploadedFiles.length === 0) || isLoading) return;
 
     const userMessage: Message = { 
       role: "user", 
-      content: input || "Please analyze the attached files",
+      content: input || "Please analyze the attached files in depth",
       files: uploadedFiles.length > 0 ? [...uploadedFiles] : undefined,
     };
     setMessages((prev) => [...prev, userMessage]);
@@ -215,7 +259,6 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
 
   const handleVoiceTranscript = (text: string) => {
     setInput(text);
-    handleSend();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -225,70 +268,182 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
     }
   };
 
+  const suggestedPrompts = [
+    "Explain quantum computing in depth",
+    "Write a Python web scraper with error handling",
+    "Analyze the stock market trends",
+    "Create a business plan outline",
+  ];
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+    <div className="flex flex-1 flex-col h-full bg-gradient-to-b from-background to-muted/20">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center space-y-4 max-w-md">
-              <div className="flex justify-center">
-                <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-elegant">
-                  <span className="text-3xl font-bold text-primary-foreground">KAI</span>
+          <div className="flex h-full items-center justify-center p-4">
+            <div className="text-center space-y-8 max-w-2xl w-full">
+              {/* Hero Section */}
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-primary via-primary to-secondary flex items-center justify-center shadow-2xl animate-pulse">
+                    <Sparkles className="h-12 w-12 text-primary-foreground" />
+                  </div>
                 </div>
+                <h2 className="text-3xl md:text-4xl font-bold text-foreground">
+                  How can I help you today?
+                </h2>
+                <p className="text-lg text-muted-foreground max-w-md mx-auto">
+                  Advanced AI with deep reasoning, PDF analysis, and intelligent responses
+                </p>
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Welcome to Kashif's AI</h2>
-              <p className="text-muted-foreground">
-                Ask me anything! I can help with coding, research, creative tasks, and much more.
-              </p>
+              
+              {/* Suggested Prompts */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 px-4">
+                {suggestedPrompts.map((prompt, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setInput(prompt)}
+                    className="group p-4 text-left rounded-2xl border border-border bg-card/50 hover:bg-card hover:border-primary/50 transition-all duration-200 hover:shadow-lg"
+                  >
+                    <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                      {prompt}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* PDF Context Indicator */}
+              {pdfContext && (
+                <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                  <FileText className="h-4 w-4" />
+                  <span>PDF context active - ask follow-up questions</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPdfContext(null)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
-          <div className="space-y-4 max-w-4xl mx-auto">
-            {messages.map((message, index) => (
-              <MessageBubble key={index} message={message} />
-            ))}
-            <div ref={messagesEndRef} />
+          <div className="max-w-4xl mx-auto px-4 py-6">
+            <div className="space-y-6">
+              {messages.map((message, index) => (
+                <MessageBubble key={index} message={message} />
+              ))}
+              {isLoading && (
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 text-primary-foreground animate-spin" />
+                  </div>
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
           </div>
         )}
       </div>
 
-      <div className="border-t border-border bg-card p-4">
+      {/* Input Area - Fixed at Bottom */}
+      <div className="sticky bottom-0 border-t border-border bg-background/95 backdrop-blur-lg p-4">
         <div className="max-w-4xl mx-auto space-y-3">
+          {/* PDF Context Badge */}
+          {pdfContext && messages.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 rounded-xl border border-primary/20">
+              <FileText className="h-4 w-4 text-primary" />
+              <span className="text-sm text-primary flex-1">PDF context active</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPdfContext(null)}
+                className="h-6 w-6 p-0 hover:bg-primary/20"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+
+          {/* File Upload Area */}
           {showFileUpload && (
             <FileUpload
               files={uploadedFiles}
               onFileUpload={(file) => setUploadedFiles(prev => [...prev, file])}
               onFileRemove={(fileName) => setUploadedFiles(prev => prev.filter(f => f.name !== fileName))}
+              onFileAnalyzed={handleFileAnalyzed}
             />
           )}
           
-          <div className="flex gap-3">
-            <div className="flex gap-2">
+          {/* Uploaded Files Preview */}
+          {uploadedFiles.length > 0 && !showFileUpload && (
+            <div className="flex flex-wrap gap-2">
+              {uploadedFiles.map((file, index) => (
+                <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full text-sm">
+                  <FileText className="h-3 w-3" />
+                  <span className="max-w-32 truncate">{file.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setUploadedFiles(prev => prev.filter(f => f.name !== file.name))}
+                    className="h-4 w-4 p-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Input Row */}
+          <div className="flex items-end gap-2">
+            <div className="flex gap-1">
               <Button
                 onClick={() => setShowFileUpload(!showFileUpload)}
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="rounded-full h-10 w-10"
-                title="Attach file"
+                className={cn(
+                  "rounded-full h-10 w-10 shrink-0 transition-colors",
+                  showFileUpload && "bg-primary/10 text-primary"
+                )}
+                title="Attach file (PDF, images, documents)"
               >
-                <Paperclip className="h-4 w-4" />
+                <Paperclip className="h-5 w-5" />
               </Button>
               
               <VoiceRecorder onTranscript={handleVoiceTranscript} />
             </div>
             
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Kashif's AI anything..."
-              className="min-h-[60px] max-h-[200px] resize-none rounded-2xl border-border bg-background focus-visible:ring-primary"
-              disabled={isLoading}
-            />
+            <div className="flex-1 relative">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything... I'll provide deep, advanced insights"
+                className="min-h-[52px] max-h-[200px] resize-none rounded-2xl border-border bg-muted/50 focus-visible:ring-primary pr-12 py-3.5"
+                disabled={isLoading}
+                rows={1}
+              />
+            </div>
+            
             <Button
               onClick={handleSend}
               disabled={(!input.trim() && uploadedFiles.length === 0) || isLoading}
-              className="rounded-2xl bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground shadow-elegant h-[60px] px-6"
+              size="icon"
+              className={cn(
+                "rounded-full h-12 w-12 shrink-0 transition-all duration-200",
+                "bg-gradient-to-r from-primary to-secondary hover:opacity-90",
+                "text-primary-foreground shadow-lg hover:shadow-xl",
+                (!input.trim() && uploadedFiles.length === 0) && "opacity-50"
+              )}
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -297,6 +452,11 @@ const ChatInterface = ({ conversationId, voiceEnabled = false }: ChatInterfacePr
               )}
             </Button>
           </div>
+          
+          {/* Hint Text */}
+          <p className="text-xs text-center text-muted-foreground">
+            Press Enter to send, Shift+Enter for new line • Supports PDF, images, and documents
+          </p>
         </div>
       </div>
     </div>
