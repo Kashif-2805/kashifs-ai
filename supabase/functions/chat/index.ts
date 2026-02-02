@@ -30,7 +30,7 @@ serve(async (req) => {
 
     console.log('Chat request from user:', user.id);
 
-    const { messages } = await req.json();
+    const { messages, systemContext } = await req.json();
 
     // Input validation
     if (!messages || !Array.isArray(messages)) {
@@ -84,6 +84,36 @@ serve(async (req) => {
 
     console.log("Processing chat request with", messages.length, "messages");
 
+    // Enhanced system prompt for deeper, more advanced responses
+    const baseSystemPrompt = `You are Kashif's AI - an advanced, intelligent assistant that provides deep, comprehensive, and context-aware responses.
+
+## Response Guidelines:
+
+1. **Clear Explanation**: Start with a concise, clear explanation of the topic
+2. **Advanced Information**: Provide in-depth, expert-level insights
+3. **Related Concepts**: Connect ideas to related topics and concepts
+4. **Practical Examples**: Include real-world examples when applicable
+5. **Structured Format**: Use headers, bullet points, and formatting for clarity
+
+## When Responding:
+- Be thorough but organized
+- Anticipate follow-up questions
+- Provide actionable insights
+- Use code blocks for any code
+- Include citations or references when relevant
+
+## For Document/PDF Questions:
+- Reference the document context provided
+- Extract and explain key insights
+- Go beyond simple summarization
+- Make connections between concepts in the document`;
+
+    // Combine base prompt with any additional context
+    let fullSystemPrompt = baseSystemPrompt;
+    if (systemContext) {
+      fullSystemPrompt = `${baseSystemPrompt}\n\n## Additional Context:\n${systemContext}`;
+    }
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -95,7 +125,7 @@ serve(async (req) => {
         messages: [
           { 
             role: "system", 
-            content: "You are Kashif's AI. Provide SHORT, PRECISE answers focused ONLY on what the user asks. Use bullet points and simple language. Avoid long explanations unless specifically requested. When user asks about a topic, give: 1) Core definition (1-2 sentences), 2) Key points (3-5 bullets), 3) Simple example if needed. Ask 'Want more details?' if they need deeper explanation. Keep responses under 200 words unless asked for more."
+            content: fullSystemPrompt
           },
           ...messages,
         ],

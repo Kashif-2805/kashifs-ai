@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import CalendarPage from "./pages/Calendar";
 import PPTPage from "./pages/PPT";
+import ImagesPage from "./pages/Images";
 
 const queryClient = new QueryClient();
 
@@ -28,7 +29,7 @@ const App = () => (
           <Route path="/ppt" element={<PPTPage />} />
           {/* Placeholder routes - coming soon pages */}
           <Route path="/video" element={<Home />} />
-          <Route path="/images" element={<Home />} />
+          <Route path="/images" element={<ImagesPage />} />
           <Route path="/settings" element={<Home />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
