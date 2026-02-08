@@ -7,6 +7,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Map MIME types to file extensions for Whisper API
+const getFileExtension = (mimeType: string): string => {
+  const mimeToExt: Record<string, string> = {
+    'audio/webm': 'webm',
+    'audio/webm;codecs=opus': 'webm',
+    'audio/mp4': 'mp4',
+    'audio/mp4;codecs=mp4a.40.2': 'mp4',
+    'audio/aac': 'aac',
+    'audio/mpeg': 'mp3',
+    'audio/ogg': 'ogg',
+    'audio/ogg;codecs=opus': 'ogg',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/flac': 'flac',
+    'audio/x-m4a': 'm4a',
+  };
+  
+  // Normalize the MIME type (remove extra spaces, lowercase)
+  const normalizedMime = mimeType.toLowerCase().trim();
+  
+  // Try exact match first
+  if (mimeToExt[normalizedMime]) {
+    return mimeToExt[normalizedMime];
+  }
+  
+  // Try matching just the base type (before semicolon)
+  const baseMime = normalizedMime.split(';')[0].trim();
+  if (mimeToExt[baseMime]) {
+    return mimeToExt[baseMime];
+  }
+  
+  // Default to webm if unknown
+  console.log(`Unknown MIME type: ${mimeType}, defaulting to webm`);
+  return 'webm';
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -30,7 +66,7 @@ serve(async (req) => {
 
     console.log('Transcribe request from user:', user.id);
 
-    const { audio } = await req.json();
+    const { audio, mimeType } = await req.json();
     
     // Input validation
     if (!audio || typeof audio !== 'string') {
@@ -50,7 +86,12 @@ serve(async (req) => {
       );
     }
 
-    console.log('Transcribing audio...');
+    // Determine file format from MIME type
+    const audioMimeType = mimeType || 'audio/webm';
+    const fileExtension = getFileExtension(audioMimeType);
+    const fileName = `audio.${fileExtension}`;
+    
+    console.log(`Transcribing audio... MIME: ${audioMimeType}, File: ${fileName}, Size: ${approximateBytes} bytes`);
 
     // Decode base64 audio
     const binaryString = atob(audio);
@@ -59,11 +100,14 @@ serve(async (req) => {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Prepare form data
+    // Prepare form data with correct MIME type and filename
     const formData = new FormData();
-    const blob = new Blob([bytes], { type: 'audio/webm' });
-    formData.append('file', blob, 'audio.webm');
+    const blob = new Blob([bytes], { type: audioMimeType });
+    formData.append('file', blob, fileName);
     formData.append('model', 'whisper-1');
+    
+    // Add language hint for better accuracy (optional, Whisper auto-detects)
+    // formData.append('language', 'en');
 
     // Call OpenAI Whisper API
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -76,12 +120,36 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
+      console.error('OpenAI API error:', response.status, errorText);
+      
+      // Provide specific error messages
+      if (response.status === 400) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid audio format. Please try recording again.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (response.status === 401) {
+        return new Response(
+          JSON.stringify({ error: 'Transcription service unavailable. Please try again later.' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const result = await response.json();
-    console.log('Transcription complete:', result.text);
+    console.log('Transcription complete:', result.text?.substring(0, 100) + '...');
+
+    // Check if transcription is empty
+    if (!result.text || result.text.trim() === '') {
+      return new Response(
+        JSON.stringify({ error: 'No speech detected. Please speak clearly and try again.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     return new Response(
       JSON.stringify({ text: result.text }),
