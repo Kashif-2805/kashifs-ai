@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,48 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
+// Zod schema for input validation
+const authSchema = z.object({
+  email: z.string()
+    .trim()
+    .email('Please enter a valid email address')
+    .max(255, 'Email must be less than 255 characters'),
+  password: z.string()
+    .min(6, 'Password must be at least 6 characters')
+    .max(128, 'Password must be less than 128 characters')
+});
+
+// Safe error message mapping to prevent information leakage
+const getSafeAuthError = (error: { message?: string }): string => {
+  const message = error.message?.toLowerCase() || '';
+  
+  // Map specific error patterns to safe messages
+  if (message.includes('invalid login') || message.includes('invalid credentials')) {
+    return 'Invalid email or password';
+  }
+  if (message.includes('email not confirmed')) {
+    return 'Please verify your email address before signing in';
+  }
+  if (message.includes('user not found') || message.includes('no user')) {
+    return 'Invalid email or password';
+  }
+  if (message.includes('rate limit') || message.includes('too many')) {
+    return 'Too many attempts. Please try again later.';
+  }
+  if (message.includes('already registered') || message.includes('already exists')) {
+    return 'An account with this email already exists';
+  }
+  if (message.includes('weak password')) {
+    return 'Please choose a stronger password';
+  }
+  if (message.includes('network') || message.includes('connection')) {
+    return 'Network error. Please check your connection and try again.';
+  }
+  
+  // Default safe message
+  return 'Authentication failed. Please try again.';
+};
+
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,12 +58,30 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Validate inputs before submission
+  const validateInputs = (): boolean => {
+    const result = authSchema.safeParse({ email, password });
+    if (!result.success) {
+      toast({
+        title: "Validation Error",
+        description: result.error.issues[0].message,
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate before proceeding
+    if (!validateInputs()) return;
+    
     setLoading(true);
 
     const { error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
@@ -32,23 +93,27 @@ export default function Auth() {
     if (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: getSafeAuthError(error),
         variant: "destructive",
       });
     } else {
       toast({
         title: "Success",
-        description: "Account created! You can now log in.",
+        description: "Account created! Please check your email to verify your account.",
       });
     }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate before proceeding
+    if (!validateInputs()) return;
+    
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
@@ -57,7 +122,7 @@ export default function Auth() {
     if (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: getSafeAuthError(error),
         variant: "destructive",
       });
     } else {
