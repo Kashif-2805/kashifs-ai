@@ -4,6 +4,16 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -88,11 +98,12 @@ const VoiceRecorder = ({ onTranscript }: VoiceRecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied' | 'unknown'>('unknown');
+  const [permissionHelpOpen, setPermissionHelpOpen] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
-  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
 
   // Check permission state on mount
@@ -130,7 +141,16 @@ const VoiceRecorder = ({ onTranscript }: VoiceRecorderProps) => {
 
   const requestMicrophonePermission = useCallback(async (): Promise<MediaStream | null> => {
     const { isIOS, isAndroid } = getBrowserInfo();
-    
+
+    const isEmbedded = (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        // Cross-origin iframe access throws
+        return true;
+      }
+    })();
+
     try {
       // Mobile-optimized constraints
       const constraints: MediaStreamConstraints = {
@@ -142,23 +162,31 @@ const VoiceRecorder = ({ onTranscript }: VoiceRecorderProps) => {
           sampleRate: isIOS || isAndroid ? 16000 : 44100,
         },
       };
-      
+
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setPermissionState('granted');
       return stream;
     } catch (error) {
       const err = error as DOMException;
       console.error('Microphone permission error:', err.name, err.message);
-      
+
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setPermissionState('denied');
+        setPermissionHelpOpen(true);
+
+        const extraHint = isEmbedded
+          ? "If you're using an embedded preview or in-app browser, mic access may be blocked. Open the app in a new tab / Safari / Chrome."
+          : undefined;
+
         toast({
           title: "Microphone Access Denied",
-          description: isIOS 
-            ? "Go to Settings > Safari > Microphone and allow access"
-            : isAndroid
-            ? "Go to Settings > Apps > Browser > Permissions and enable Microphone"
-            : "Please allow microphone access in your browser settings",
+          description:
+            extraHint ??
+            (isIOS
+              ? "On iPhone/iPad: Settings → Safari → Microphone → Allow"
+              : isAndroid
+                ? "On Android: System Settings → Apps → Browser → Permissions → Microphone"
+                : "Allow microphone access in your browser site settings, then reload"),
           variant: "destructive",
         });
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
@@ -193,7 +221,7 @@ const VoiceRecorder = ({ onTranscript }: VoiceRecorderProps) => {
           variant: "destructive",
         });
       }
-      
+
       return null;
     }
   }, [toast]);
@@ -377,17 +405,41 @@ const VoiceRecorder = ({ onTranscript }: VoiceRecorderProps) => {
     }
   };
 
+  // Check browser support
+  const supportCheck = isVoiceSupported();
+  const isSupported = supportCheck.supported;
+
+  const isEmbedded = (() => {
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true;
+    }
+  })();
+
+  const handleOpenInNewTab = useCallback(() => {
+    try {
+      window.open(window.location.href, "_blank", "noopener,noreferrer");
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const handleClick = useCallback(() => {
+    if (!isSupported) return;
+
+    // If permission was denied previously, show help instead of retrying.
+    if (!isRecording && permissionState === 'denied') {
+      setPermissionHelpOpen(true);
+      return;
+    }
+
     if (isRecording) {
       stopRecording();
     } else {
       startRecording();
     }
-  }, [isRecording, startRecording, stopRecording]);
-
-  // Check browser support
-  const supportCheck = isVoiceSupported();
-  const isSupported = supportCheck.supported;
+  }, [isRecording, isSupported, permissionState, startRecording, stopRecording]);
 
   // Format duration as MM:SS
   const formatDuration = (seconds: number) => {
@@ -397,64 +449,103 @@ const VoiceRecorder = ({ onTranscript }: VoiceRecorderProps) => {
   };
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="relative">
-            <Button
-              onClick={handleClick}
-              disabled={isProcessing || !isSupported}
-              variant={isRecording ? "destructive" : "outline"}
-              size="icon"
-              className={`rounded-full h-10 w-10 transition-all ${
-                isRecording 
-                  ? 'animate-pulse bg-red-500 hover:bg-red-600 ring-4 ring-red-500/30' 
-                  : permissionState === 'denied'
-                  ? 'border-destructive text-destructive'
-                  : 'border-border hover:border-primary'
-              }`}
-              aria-label={
-                isProcessing 
-                  ? "Processing audio..." 
-                  : isRecording 
-                  ? "Stop recording" 
-                  : "Start voice recording"
-              }
-            >
-              {isProcessing ? (
-                <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : isRecording ? (
-                <Square className="h-4 w-4" />
-              ) : permissionState === 'denied' ? (
-                <AlertCircle className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4" />
+    <AlertDialog open={permissionHelpOpen} onOpenChange={setPermissionHelpOpen}>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="relative">
+              <Button
+                onClick={handleClick}
+                disabled={isProcessing || !isSupported}
+                variant={isRecording ? "destructive" : "outline"}
+                size="icon"
+                className={`rounded-full h-10 w-10 transition-all ${
+                  isRecording
+                    ? 'animate-pulse bg-destructive hover:bg-destructive/90 ring-4 ring-destructive/30'
+                    : permissionState === 'denied'
+                      ? 'border-destructive text-destructive'
+                      : 'border-border hover:border-primary'
+                }`}
+                aria-label={
+                  isProcessing
+                    ? "Processing audio..."
+                    : isRecording
+                      ? "Stop recording"
+                      : "Start voice recording"
+                }
+              >
+                {isProcessing ? (
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : isRecording ? (
+                  <Square className="h-4 w-4" />
+                ) : permissionState === 'denied' ? (
+                  <AlertCircle className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </Button>
+
+              {/* Recording duration indicator */}
+              {isRecording && (
+                <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                  {formatDuration(recordingDuration)}
+                </span>
               )}
-            </Button>
-            
-            {/* Recording duration indicator */}
-            {isRecording && (
-              <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5 rounded-full font-mono">
-                {formatDuration(recordingDuration)}
-              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {!isSupported ? (
+              <p>{supportCheck.reason}</p>
+            ) : permissionState === 'denied' ? (
+              <p>Mic access denied — tap for help</p>
+            ) : isProcessing ? (
+              <p>Converting speech to text...</p>
+            ) : isRecording ? (
+              <p>Tap to stop recording</p>
+            ) : (
+              <p>Tap to start voice input</p>
             )}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          {!isSupported ? (
-            <p>{supportCheck.reason}</p>
-          ) : permissionState === 'denied' ? (
-            <p>Microphone access denied. Check browser settings.</p>
-          ) : isProcessing ? (
-            <p>Converting speech to text...</p>
-          ) : isRecording ? (
-            <p>Tap to stop recording</p>
-          ) : (
-            <p>Tap to start voice input</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Enable microphone access</AlertDialogTitle>
+          <AlertDialogDescription>
+            Your browser is blocking microphone access, so voice input can’t start.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3 text-sm text-foreground">
+          {isEmbedded && (
+            <p className="text-muted-foreground">
+              Tip: Embedded previews / in-app browsers often block mic access. Opening the app in a new tab usually fixes it.
+            </p>
           )}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+
+          <div className="space-y-2">
+            <p className="font-medium">Fix steps</p>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>
+                Desktop Chrome/Edge: click the lock icon → Site settings → Microphone → Allow → reload.
+              </li>
+              <li>
+                iPhone/iPad: Settings → Safari → Microphone → Allow (or Safari → aA → Website Settings → Microphone).
+              </li>
+              <li>
+                Android: System Settings → Apps → your browser → Permissions → Microphone → Allow; then reload.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel>Close</AlertDialogCancel>
+          <AlertDialogAction onClick={handleOpenInNewTab}>Open in new tab</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 };
 
