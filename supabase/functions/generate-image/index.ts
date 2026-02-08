@@ -29,12 +29,20 @@ serve(async (req) => {
 
     const { prompt } = await req.json();
 
-    if (!prompt || typeof prompt !== 'string') {
-      return new Response(
-        JSON.stringify({ error: 'Prompt is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+    return new Response(
+      JSON.stringify({ error: 'Prompt is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate prompt length
+  if (prompt.length > 2000) {
+    return new Response(
+      JSON.stringify({ error: 'Prompt must be between 1 and 2000 characters' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 
     console.log('Generating image for prompt:', prompt);
 
@@ -98,9 +106,9 @@ Style: Professional, visually stunning, high resolution, artistic quality.`;
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error generating image:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Image generation failed. Please try again." }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
